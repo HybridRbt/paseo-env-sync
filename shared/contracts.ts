@@ -26,7 +26,7 @@ const cloudFolder = z.object({
 });
 
 export const discoverDirsRpc = defineRpc({
-  name: "envSync.discoverDirs",
+  name: "env-sync.discover-dirs",
   input: z.object({}),
   output: z.object({
     candidates: z.array(cloudFolder),
@@ -34,7 +34,7 @@ export const discoverDirsRpc = defineRpc({
 });
 
 export const statusRpc = defineRpc({
-  name: "envSync.status",
+  name: "env-sync.status",
   input: z.object({}),
   output: z.object({
     configured: z.boolean(),
@@ -58,7 +58,7 @@ export const statusRpc = defineRpc({
 });
 
 export const saveRpc = defineRpc({
-  name: "envSync.save",
+  name: "env-sync.save",
   input: z.object({}),
   output: z.object({
     savedAt: z.string(),
@@ -69,7 +69,7 @@ export const saveRpc = defineRpc({
 });
 
 export const applyRpc = defineRpc({
-  name: "envSync.apply",
+  name: "env-sync.apply",
   input: z.object({
     updateExisting: z.boolean().optional(),
   }),
@@ -84,7 +84,7 @@ export const applyRpc = defineRpc({
 });
 
 export const restoreRpc = defineRpc({
-  name: "envSync.restore",
+  name: "env-sync.restore",
   input: z.object({}),
   output: z.object({
     restoredAt: z.string(),
