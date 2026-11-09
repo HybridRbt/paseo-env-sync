@@ -1,0 +1,28 @@
+{
+  "name": "paseo-env-sync",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "files": [
+    "paseo-plugin.json",
+    "OVERVIEW.md",
+    "README.md",
+    "index.client.tsx",
+    "index.server.ts",
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@getpaseo/plugin": "^0.15.3",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "react-native": "^0.81.5",
+    "typescript": "^5.8.0",
+    "zod": "^4.0.0"
+  }
+}

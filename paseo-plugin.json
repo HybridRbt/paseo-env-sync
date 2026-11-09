@@ -1,0 +1,8 @@
+{
+  "id": "paseo-env-sync",
+  "name": "Paseo Env Sync",
+  "description": "Keep plugins and plugin settings in sync across machines using your cloud drive folder.",
+  "requirements": {
+    "paseo": ">=0.11.4"
+  }
+}
