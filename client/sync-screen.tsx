@@ -143,20 +143,24 @@ function DiffList({
   title,
   items,
   theme,
+  t,
 }: {
   title: string;
   items: string[];
   theme: PluginSurfaceProps["theme"];
+  t: ReturnType<typeof translator>;
 }) {
-  if (items.length === 0) return null;
+  // Show the row even when empty ("无") so a zero count reads as "no
+  // differences", not as a missing/failed status card.
+  const shown = items.length > 0 ? items : [t("无")];
   return (
     <View style={{ gap: 2 }}>
       <Text style={{ color: theme.colors.foreground, fontWeight: "600", fontSize: 13 }}>
         {title}
       </Text>
-      {items.map((item) => (
+      {shown.map((item, index) => (
         <Text
-          key={item}
+          key={`${index}:${item}`}
           selectable
           style={{ color: theme.colors.foregroundMuted, fontSize: 13 }}
         >
@@ -277,6 +281,26 @@ export function EnvSyncScreen({ theme, host }: PluginSurfaceProps) {
         ))}
       </View>
 
+      {/* Operation feedback lives at the top: a result at the bottom of a
+          long ScrollView lands below the fold exactly when the user is
+          watching the status card instead. */}
+      {notice ? (
+        <Text
+          selectable
+          style={{
+            fontSize: 13,
+            color:
+              notice.kind === "error"
+                ? colors.statusDanger
+                : notice.kind === "warn"
+                  ? colors.statusWarning
+                  : colors.statusSuccess,
+          }}
+        >
+          {notice.text}
+        </Text>
+      ) : null}
+
       <SettingsSection title={t("云盘环境同步")}>
         <SettingsCard>
           {candidates.length > 0 ? (
@@ -396,6 +420,7 @@ export function EnvSyncScreen({ theme, host }: PluginSurfaceProps) {
               ) : null}
               <DiffList
                 theme={theme}
+                t={t}
                 title={t("缺失插件（{count}）", {
                   count: statusResult.missingPlugins.length,
                 })}
@@ -405,6 +430,7 @@ export function EnvSyncScreen({ theme, host }: PluginSurfaceProps) {
               />
               <DiffList
                 theme={theme}
+                t={t}
                 title={t("启用状态差异（{count}）", {
                   count: statusResult.enablementDiffs.length,
                 })}
@@ -415,6 +441,7 @@ export function EnvSyncScreen({ theme, host }: PluginSurfaceProps) {
               />
               <DiffList
                 theme={theme}
+                t={t}
                 title={t("内容有差异的设置文件（{count}）", {
                   count: statusResult.changedSettings.length,
                 })}
@@ -513,23 +540,6 @@ export function EnvSyncScreen({ theme, host }: PluginSurfaceProps) {
           </View>
         </SettingsCard>
       </SettingsSection>
-
-      {notice ? (
-        <Text
-          selectable
-          style={{
-            fontSize: 13,
-            color:
-              notice.kind === "error"
-                ? colors.statusDanger
-                : notice.kind === "warn"
-                  ? colors.statusWarning
-                  : colors.statusSuccess,
-          }}
-        >
-          {notice.text}
-        </Text>
-      ) : null}
     </ScrollView>
   );
 }
