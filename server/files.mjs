@@ -71,18 +71,19 @@ export async function safeChildPath(rootDir, relativePath) {
   if (parts.some((part) => part === "" || part === "." || part === "..")) {
     throw new Error(`Path traversal is not allowed: ${relativePath}`);
   }
-  // Reject symlinked components with lstat (stat would follow the link);
-  // a missing final leaf is fine — it is the file we are about to create.
+  // Reject symlinked components with lstat (stat would follow the link).
+  // A missing component — intermediate or leaf — just stops the walk: it
+  // cannot be a symlink, and the caller (atomicWriteJson) creates parents.
   // Containment holds via segment validation: no empty/dot/dotdot parts and
   // a relative input, so resolve(rootDir, ...parts) can never escape rootDir.
   let current = rootDir;
-  for (let i = 0; i < parts.length; i++) {
-    current = path.join(current, parts[i]);
+  for (const part of parts) {
+    current = path.join(current, part);
     let st;
     try {
       st = await lstat(current);
     } catch (error) {
-      if (error.code === "ENOENT" && i === parts.length - 1) break;
+      if (error.code === "ENOENT") break;
       throw error;
     }
     if (st.isSymbolicLink()) {
