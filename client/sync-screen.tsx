@@ -6,9 +6,11 @@ import {
   SettingsInput,
   SettingsSection,
   SettingsSwitch,
+  type SettingsInputHandle,
+  type SettingsInputProps,
 } from "@getpaseo/plugin/client/ui";
 import type { z } from "zod";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import {
   applyRpc,
@@ -36,6 +38,19 @@ type Draft = {
   updateExisting: boolean;
   extraExcludes: string;
 };
+
+// The SDK input is uncontrolled (initialValue + replaceText handle), so every
+// programmatic draft change (settings load, cloud-drive pill tap) must be
+// pushed into the visible text or the shown value drifts from the saved one.
+function SyncedSettingsInput({ initialValue = "", ...props }: SettingsInputProps) {
+  const input = useRef<SettingsInputHandle>(null);
+  useEffect(() => {
+    if (input.current && input.current.getText() !== initialValue) {
+      input.current.replaceText(initialValue);
+    }
+  }, [initialValue]);
+  return <SettingsInput {...props} initialValue={initialValue} ref={input} />;
+}
 
 function PillButton({
   label,
@@ -291,27 +306,27 @@ export function EnvSyncScreen({ theme, host }: PluginSurfaceProps) {
               </Text>
             </View>
           ) : null}
-          <SettingsInput
+          <SyncedSettingsInput
             label={t("同步目录")}
             hint={t("云盘中的环境文件夹绝对路径，例如 iCloud Drive 里的 PaseoSync。")}
             placeholder="/path/to/PaseoSync"
             initialValue={draft.syncDir}
             onChangeText={(value) => setDraft({ ...draft, syncDir: value })}
           />
-          <SettingsInput
+          <SyncedSettingsInput
             label={t("Paseo CLI 路径（可选）")}
             hint={t("留空时自动查找。")}
             placeholder="paseo"
             initialValue={draft.cliPath}
             onChangeText={(value) => setDraft({ ...draft, cliPath: value })}
           />
-          <SettingsInput
+          <SyncedSettingsInput
             label={t("Paseo 数据目录（可选）")}
             hint={t("留空时使用默认的 ~/.paseo。")}
             initialValue={draft.daemonHome}
             onChangeText={(value) => setDraft({ ...draft, daemonHome: value })}
           />
-          <SettingsInput
+          <SyncedSettingsInput
             label={t("额外排除（可选）")}
             hint={t("每行一个，格式 plugin/file.json。")}
             initialValue={draft.extraExcludes}

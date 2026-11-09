@@ -56,6 +56,12 @@ test("safeChildPath rejects traversal, absolute, and symlinked segments", async 
   await assert.rejects(() => safeChildPath(root, "link/file.json"), /symlink|realpath/i);
 });
 
+test("safeChildPath rejects Windows drive-relative segments that would escape the root", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "safe-child-"));
+  await assert.rejects(() => safeChildPath(root, "C:evil.json"), /drive|escape|not allowed/i);
+  await assert.rejects(() => safeChildPath(root, "better-paseo/C:evil.json"), /drive|escape|not allowed/i);
+});
+
 test("readValidJsonObject returns object for valid JSON and null otherwise", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "read-json-"));
   const good = path.join(dir, "good.json");

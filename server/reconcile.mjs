@@ -1,10 +1,11 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
   atomicWriteJson,
   canonicalJsonString,
+  isConflictOrTempName,
   readValidJsonObject,
   safeChildPath,
   shouldSyncSettingFile,
@@ -76,6 +77,14 @@ async function backupPath(ctx) {
   return path.join(ctx.stateDir, "last-backup.json");
 }
 
+// A manifest is external input: its settingsFiles entries must pass the same
+// exclusion rules as local scanning, so a stale or tampered manifest can never
+// overwrite this machine's controller-own or otherwise excluded settings.
+function manifestRelAllowed(rel, extraExcludes) {
+  const [pluginId, fileName] = rel.split("/");
+  return shouldSyncSettingFile(pluginId, fileName, { selfIds: SELF_IDS, extraExcludes });
+}
+
 export async function inspectStatus(ctx) {
   const configured = typeof ctx.syncDir === "string" && ctx.syncDir !== "" && path.isAbsolute(ctx.syncDir);
   const base = {
@@ -127,6 +136,7 @@ export async function inspectStatus(ctx) {
   const changedSettings = [];
   for (const rel of settingsFiles) {
     if (typeof rel !== "string") continue;
+    if (!manifestRelAllowed(rel, ctx.extraExcludes)) continue;
     let cloud;
     try {
       cloud = await readValidJsonObject(await safeChildPath(path.join(ctx.syncDir, "settings"), rel));
@@ -171,13 +181,19 @@ export async function saveToSyncDir(ctx) {
   const settingsFiles = [];
   for (const rel of await listSyncableSettingRels(ctx.home, ctx.extraExcludes)) {
     const obj = await readValidJsonObject(path.join(ctx.home, "plugin-settings", rel));
-    if (obj === null) continue; // half-written or corrupt local file: never propagate
+    if (obj === null) {
+      // Half-written or corrupt local file: never propagate it — but keep any
+      // existing cloud copy listed, or pruning would destroy the last good one.
+      if (existsSync(path.join(settingsDir, ...rel.split("/")))) settingsFiles.push(rel);
+      continue;
+    }
     await atomicWriteJson(await safeChildPath(settingsDir, rel), obj);
     settingsFiles.push(rel);
   }
   settingsFiles.sort();
 
-  // Prune sync-folder settings this machine no longer has.
+  // Prune sync-folder settings this machine no longer has — but never touch
+  // conflict copies or temp files: they hold another machine's forked data.
   let pluginDirs;
   try {
     pluginDirs = await readdir(settingsDir, { withFileTypes: true });
@@ -194,10 +210,9 @@ export async function saveToSyncDir(ctx) {
       continue;
     }
     for (const file of files) {
-      if (file.isFile() && !keep.has(`${pluginDir.name}/${file.name}`)) {
-        const { rm } = await import("node:fs/promises");
-        await rm(path.join(settingsDir, pluginDir.name, file.name), { force: true });
-      }
+      if (!file.isFile() || keep.has(`${pluginDir.name}/${file.name}`)) continue;
+      if (isConflictOrTempName(file.name)) continue;
+      await rm(path.join(settingsDir, pluginDir.name, file.name), { force: true });
     }
   }
 
@@ -265,6 +280,10 @@ export async function applyFromSyncDir(ctx, options = {}) {
   const settingsFiles = Array.isArray(manifest.settingsFiles) ? manifest.settingsFiles : [];
   for (const rel of settingsFiles) {
     if (typeof rel !== "string") continue;
+    if (!manifestRelAllowed(rel, ctx.extraExcludes)) {
+      warnings.push(`skipped excluded path ${rel}`);
+      continue;
+    }
     let obj;
     let cloudPath;
     try {

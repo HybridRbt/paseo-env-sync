@@ -9,6 +9,13 @@ const BUILTIN_EXCLUDED_REL = new Set([
 ]);
 const CONFLICT_RE = /conflicted copy|冲突副本|-conflict-|\(1\)\.json$/i;
 
+// Cloud-drive fork copies and editor temp files: never propagate them, but
+// also never prune them from the sync folder — they hold another machine's
+// forked data the user may still want to compare or merge.
+export function isConflictOrTempName(fileName) {
+  return fileName.startsWith(".") || fileName.startsWith("~") || CONFLICT_RE.test(fileName);
+}
+
 function isPlainSegment(value) {
   return (
     typeof value === "string" &&
@@ -70,6 +77,11 @@ export async function safeChildPath(rootDir, relativePath) {
   const parts = relativePath.split(/[\\/]+/);
   if (parts.some((part) => part === "" || part === "." || part === "..")) {
     throw new Error(`Path traversal is not allowed: ${relativePath}`);
+  }
+  // Drive-relative segments like "C:foo" are not absolute, but win32 resolve
+  // anchors them to the drive's CWD, escaping the root entirely.
+  if (parts.some((part) => /^[A-Za-z]:/.test(part))) {
+    throw new Error(`Drive-relative paths are not allowed: ${relativePath}`);
   }
   // Reject symlinked components with lstat (stat would follow the link).
   // A missing component — intermediate or leaf — just stops the walk: it

@@ -133,6 +133,77 @@ test("saveToSyncDir prunes settings removed locally from the sync folder", async
   assert.equal(existsSync(stale), false);
 });
 
+test("saveToSyncDir keeps the cloud copy when the local file becomes unreadable", async () => {
+  const { home, syncDir } = await makeEnv();
+  await putSetting(home, "better-paseo/tasks.json", { good: "value" });
+  await saveToSyncDir({ home, syncDir, adapter: mockAdapter([]) });
+  // local file gets truncated (e.g. plugin crashed mid-write); cloud still good
+  await writeFile(path.join(home, "plugin-settings", "better-paseo", "tasks.json"), '{"truncated":');
+  await saveToSyncDir({ home, syncDir, adapter: mockAdapter([]) });
+  const cloudCopy = JSON.parse(
+    await readFile(path.join(syncDir, "settings", "better-paseo", "tasks.json"), "utf8"),
+  );
+  assert.deepEqual(cloudCopy, { good: "value" });
+  const manifest = JSON.parse(await readFile(path.join(syncDir, "manifest.json"), "utf8"));
+  assert.deepEqual(manifest.settingsFiles, ["better-paseo/tasks.json"]);
+});
+
+test("saveToSyncDir never deletes cloud conflict copies or temp files", async () => {
+  const { home, syncDir } = await makeEnv();
+  await putSetting(home, "better-paseo/tasks.json", { views: [] });
+  await saveToSyncDir({ home, syncDir, adapter: mockAdapter([]) });
+  const conflicted = path.join(syncDir, "settings", "better-paseo", "tasks (conflicted copy 2026-11-08).json");
+  const temp = path.join(syncDir, "settings", "better-paseo", ".tmp-abc123");
+  await writeFile(conflicted, JSON.stringify({ fromOtherMachine: true }));
+  await writeFile(temp, "{}");
+  await saveToSyncDir({ home, syncDir, adapter: mockAdapter([]) });
+  assert.equal(existsSync(conflicted), true);
+  assert.equal(existsSync(temp), true);
+});
+
+test("applyFromSyncDir refuses self and excluded paths listed in the manifest", async () => {
+  const { base } = await makeEnv();
+  const home = path.join(base, "home6");
+  const syncDir = path.join(base, "sync6");
+  const stateDir = path.join(base, "state6");
+  await putSetting(home, "paseo-env-sync/config.json", { syncDir: "/machine/b/path" });
+  await mkdir(path.join(syncDir, "settings", "paseo-env-sync"), { recursive: true });
+  await writeFile(
+    path.join(syncDir, "settings", "paseo-env-sync", "config.json"),
+    JSON.stringify({ syncDir: "C:\\Users\\machineA\\PaseoSync" }),
+  );
+  await writeFile(
+    path.join(syncDir, "manifest.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      plugins: [],
+      settingsFiles: ["paseo-env-sync/config.json"],
+    }),
+  );
+  const result = await applyFromSyncDir({ home, syncDir, stateDir, adapter: mockAdapter([]) });
+  assert.deepEqual(result.settingsWritten, []);
+  assert.equal(result.warnings.some((w) => w.includes("paseo-env-sync/config.json")), true);
+  assert.deepEqual(await readSetting(home, "paseo-env-sync/config.json"), { syncDir: "/machine/b/path" });
+});
+
+test("inspectStatus ignores excluded manifest entries when diffing", async () => {
+  const { base } = await makeEnv();
+  const home = path.join(base, "home7");
+  const syncDir = path.join(base, "sync7");
+  await mkdir(path.join(syncDir, "settings", "paseo-env-sync"), { recursive: true });
+  await writeFile(path.join(syncDir, "settings", "paseo-env-sync", "config.json"), JSON.stringify({ evil: true }));
+  await writeFile(
+    path.join(syncDir, "manifest.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      plugins: [],
+      settingsFiles: ["paseo-env-sync/config.json"],
+    }),
+  );
+  const status = await inspectStatus({ home, syncDir, stateDir: path.join(base, "state7"), adapter: mockAdapter([]) });
+  assert.deepEqual(status.changedSettings, []);
+});
+
 test("applyFromSyncDir backs up, installs, writes settings verbatim, and rejects corrupted JSON", async () => {
   const { base } = await makeEnv();
   const home = path.join(base, "home2");
