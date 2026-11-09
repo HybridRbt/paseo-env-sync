@@ -186,6 +186,44 @@ test("applyFromSyncDir refuses self and excluded paths listed in the manifest", 
   assert.deepEqual(await readSetting(home, "paseo-env-sync/config.json"), { syncDir: "/machine/b/path" });
 });
 
+test("apply and restore skip rewriting settings that already match semantically", async () => {
+  const { base } = await makeEnv();
+  const home = path.join(base, "home8");
+  const syncDir = path.join(base, "sync8");
+  const stateDir = path.join(base, "state8");
+  // Local copy is semantically identical to the cloud copy but minified:
+  // a same-machine apply must leave the bytes untouched and reload nothing.
+  await putSetting(home, "better-paseo/tasks.json", '{"views":[]}');
+  await mkdir(path.join(syncDir, "settings", "better-paseo"), { recursive: true });
+  await writeFile(path.join(syncDir, "settings", "better-paseo", "tasks.json"), JSON.stringify({ views: [] }, null, 4));
+  await writeFile(
+    path.join(syncDir, "manifest.json"),
+    JSON.stringify({ schemaVersion: 1, plugins: [], settingsFiles: ["better-paseo/tasks.json"] }),
+  );
+  const adapter = mockAdapter([
+    { id: "better-paseo", enabled: true, installation: { identity: { kind: "npm", packageName: "x" } } },
+  ]);
+  const before = await readFile(path.join(home, "plugin-settings", "better-paseo", "tasks.json"), "utf8");
+  const applied = await applyFromSyncDir({ home, syncDir, stateDir, adapter });
+  assert.deepEqual(applied.settingsWritten, []);
+  assert.equal(adapter.calls.some(([action]) => action === "reload"), false);
+  assert.equal(await readFile(path.join(home, "plugin-settings", "better-paseo", "tasks.json"), "utf8"), before);
+
+  // Different content on a second round: now it must write, count, and reload.
+  await writeFile(path.join(syncDir, "settings", "better-paseo", "tasks.json"), JSON.stringify({ views: ["changed"] }));
+  const appliedAgain = await applyFromSyncDir({ home, syncDir, stateDir, adapter });
+  assert.deepEqual(appliedAgain.settingsWritten, ["better-paseo/tasks.json"]);
+  assert.equal(adapter.calls.some(([action, id]) => action === "reload" && id === "better-paseo"), true);
+
+  // Restore after a real change puts the pre-apply content back...
+  const restored = await restoreLastBackup({ home, syncDir, stateDir, adapter });
+  assert.deepEqual(restored.settingsRestored, ["better-paseo/tasks.json"]);
+  assert.deepEqual(JSON.parse(await readFile(path.join(home, "plugin-settings", "better-paseo", "tasks.json"), "utf8")), { views: [] });
+  // ...and a second restore of an already-identical tree reports nothing.
+  const restoredAgain = await restoreLastBackup({ home, syncDir, stateDir, adapter });
+  assert.deepEqual(restoredAgain.settingsRestored, []);
+});
+
 test("inspectStatus ignores excluded manifest entries when diffing", async () => {
   const { base } = await makeEnv();
   const home = path.join(base, "home7");

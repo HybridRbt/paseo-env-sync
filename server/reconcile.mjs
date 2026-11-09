@@ -297,6 +297,10 @@ export async function applyFromSyncDir(ctx, options = {}) {
       warnings.push(`skipped invalid JSON ${rel}`); // half-synced cloud file: never clobber local
       continue;
     }
+    const local = await readValidJsonObject(path.join(ctx.home, "plugin-settings", rel));
+    if (local !== null && canonicalJsonString(local) === canonicalJsonString(obj)) {
+      continue; // already in sync: keep the local bytes untouched (verbatim copy)
+    }
     await atomicWriteJson(await safeChildPath(path.join(ctx.home, "plugin-settings"), rel), obj);
     settingsWritten.push(rel);
     touchedPlugins.add(rel.split("/")[0]);
@@ -350,6 +354,10 @@ export async function restoreLastBackup(ctx) {
       continue;
     }
     if (obj === null || typeof obj !== "object" || Array.isArray(obj)) continue;
+    const current = await readValidJsonObject(path.join(ctx.home, "plugin-settings", rel));
+    if (current !== null && canonicalJsonString(current) === canonicalJsonString(obj)) {
+      continue; // nothing to put back: leave the current bytes untouched
+    }
     await atomicWriteJson(await safeChildPath(path.join(ctx.home, "plugin-settings"), rel), obj);
     settingsRestored.push(rel);
   }
