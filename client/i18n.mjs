@@ -17,7 +17,14 @@ const english = {
   "每行一个，格式 plugin/file.json。": "One per line, format plugin/file.json.",
   保存设置: "Save settings",
   保存: "Save",
+  "设置文件无法读取，可能已损坏或由旧版本生成；可重置为默认设置后重新填写。":
+    "The settings file could not be read. It may be corrupted or written by an older version. Reset it to defaults and fill it in again.",
+  "原始错误：{error}": "Underlying error: {error}",
+  重置为默认设置: "Reset to defaults",
+  重置: "Reset",
   环境状态: "Environment status",
+  "设置不可用，暂无法加载环境状态。":
+    "Settings unavailable; environment status cannot load yet.",
   刷新: "Refresh",
   "尚未设置云盘同步目录。": "The cloud sync folder is not set yet.",
   "云盘目录中没有有效的 manifest.json；请先在一台机器上执行「将本机环境保存到云盘」。":

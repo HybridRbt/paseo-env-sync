@@ -340,14 +340,30 @@ export function EnvSyncScreen({ theme, host }: PluginSurfaceProps) {
               if (settingsReady) void settings.save(draft, settings.revision);
             }}
           />
+          {settings.status === "error" || settings.status === "invalid" ? (
+            <View style={{ gap: 8 }}>
+              <Text
+                selectable
+                style={{ color: colors.statusDanger, fontSize: 13 }}
+              >
+                {t(
+                  "设置文件无法读取，可能已损坏或由旧版本生成；可重置为默认设置后重新填写。",
+                )}
+              </Text>
+              <Text selectable style={muted}>
+                {t("原始错误：{error}", { error: settings.error })}
+              </Text>
+              <SettingsAction
+                label={t("重置为默认设置")}
+                actionLabel={t("重置")}
+                disabled={busy || settings.saving}
+                onPress={() => void settings.reset()}
+              />
+            </View>
+          ) : null}
         </SettingsCard>
       </SettingsSection>
 
-      {settings.status === "error" || settings.status === "invalid" ? (
-        <Text selectable style={{ color: colors.statusDanger, fontSize: 13 }}>
-          {settings.error}
-        </Text>
-      ) : null}
       {settings.saveError ? (
         <Text selectable style={{ color: colors.statusDanger, fontSize: 13 }}>
           {settings.saveError}
@@ -358,7 +374,11 @@ export function EnvSyncScreen({ theme, host }: PluginSurfaceProps) {
       <SettingsSection title={t("环境状态")}>
         <SettingsCard>
           {statusResult === null ? (
-            <Text style={muted}>{t("执行中…")}</Text>
+            <Text style={muted}>
+              {settings.status === "error" || settings.status === "invalid"
+                ? t("设置不可用，暂无法加载环境状态。")
+                : t("执行中…")}
+            </Text>
           ) : (
             <View style={{ gap: 8 }}>
               {statusWarning ? (
